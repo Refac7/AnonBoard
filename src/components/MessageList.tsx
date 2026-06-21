@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { MessageCard } from "./MessageCard"
 import { Button } from "@/components/ui/button"
 import { Loader2, RefreshCw, PencilLine } from "lucide-react"
@@ -15,20 +15,38 @@ interface Message {
 
 interface MessageListProps {
   isAdmin?: boolean
+  /** Increment to trigger a fresh fetch bypassing the edge cache */
+  refreshKey?: number
+  /** Called after a reply is successfully posted, so the parent can refresh */
+  onReplyPosted?: () => void
 }
 
-export function MessageList({ isAdmin = false }: MessageListProps) {
+export function MessageList({
+  isAdmin = false,
+  refreshKey = 0,
+  onReplyPosted,
+}: MessageListProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [replies, setReplies] = useState<Record<string, Message[]>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchMessages = useCallback(async () => {
-    setIsLoading(true)
+  // Track whether this is the initial load (show loading) or a background refresh
+  const isInitialLoad = useRef(true)
+
+  const fetchMessages = useCallback(async (bypassCache: boolean) => {
+    // Only show full loading state on initial load
+    if (isInitialLoad.current) {
+      setIsLoading(true)
+    }
     setError(null)
 
     try {
-      const response = await fetch("/api/messages")
+      const url = bypassCache
+        ? `/api/messages?_t=${Date.now()}`
+        : "/api/messages"
+
+      const response = await fetch(url)
       if (!response.ok) throw new Error("Failed to fetch messages")
 
       const data = await response.json()
@@ -36,7 +54,11 @@ export function MessageList({ isAdmin = false }: MessageListProps) {
 
       const repliesMap: Record<string, Message[]> = {}
       for (const msg of data) {
-        const repliesResponse = await fetch(`/api/messages?parentId=${msg.id}`)
+        const repliesUrl = bypassCache
+          ? `/api/messages?parentId=${msg.id}&_t=${Date.now()}`
+          : `/api/messages?parentId=${msg.id}`
+
+        const repliesResponse = await fetch(repliesUrl)
         if (repliesResponse.ok) {
           const repliesData = await repliesResponse.json()
           if (repliesData.length > 0) {
@@ -49,12 +71,15 @@ export function MessageList({ isAdmin = false }: MessageListProps) {
       setError("加载留言失败，请稍后重试")
     } finally {
       setIsLoading(false)
+      isInitialLoad.current = false
     }
   }, [])
 
+  // Initial load & refresh on refreshKey change
   useEffect(() => {
-    fetchMessages()
-  }, [fetchMessages])
+    const bypassCache = refreshKey > 0
+    fetchMessages(bypassCache)
+  }, [fetchMessages, refreshKey])
 
   const handleReply = async (parentId: string, content: string) => {
     const response = await fetch("/api/messages", {
@@ -69,10 +94,15 @@ export function MessageList({ isAdmin = false }: MessageListProps) {
     }
 
     const newReply = await response.json()
+
+    // Optimistic update for instant feedback
     setReplies((prev) => ({
       ...prev,
       [parentId]: [...(prev[parentId] || []), newReply],
     }))
+
+    // Notify parent so it can refresh stats & trigger cache refresh
+    onReplyPosted?.()
   }
 
   const handleDelete = async (id: string) => {
@@ -123,7 +153,7 @@ export function MessageList({ isAdmin = false }: MessageListProps) {
         <Button
           variant="outline"
           size="sm"
-          onClick={fetchMessages}
+          onClick={() => fetchMessages(true)}
           className="rounded-lg text-xs h-8 border-border/40 text-muted-foreground/60 hover:text-foreground"
         >
           <RefreshCw className="h-3 w-3 mr-1.5" />
