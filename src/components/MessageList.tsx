@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { MessageCard } from "./MessageCard"
 import { Button } from "@/components/ui/button"
-import { Loader2, RefreshCw, MessageCircle } from "lucide-react"
+import { Loader2, RefreshCw, PencilLine } from "lucide-react"
 
 interface Message {
   id: string
@@ -99,55 +99,73 @@ export function MessageList({ isAdmin = false }: MessageListProps) {
     })
   }
 
+  // ── Loading State ──
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 space-y-4">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground/50" />
-        <p className="text-xs text-muted-foreground/50">加载中...</p>
+      <div className="flex flex-col items-center justify-center py-20 space-y-4">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/30" />
+        <p className="text-xs text-muted-foreground/35">正在加载留言…</p>
       </div>
     )
   }
 
+  // ── Error State ──
   if (error) {
     return (
-      <div className="text-center py-16 space-y-4">
-        <div className="h-12 w-12 mx-auto rounded-xl bg-destructive/10 flex items-center justify-center">
-          <MessageCircle className="h-6 w-6 text-destructive/50" />
+      <div className="flex flex-col items-center justify-center py-20 space-y-5">
+        <div className="h-12 w-12 rounded-2xl bg-destructive/5 ring-1 ring-destructive/10 flex items-center justify-center">
+          <PencilLine className="h-5 w-5 text-destructive/40" />
         </div>
-        <p className="text-sm text-muted-foreground">{error}</p>
-        <Button variant="outline" size="sm" onClick={fetchMessages} className="rounded-lg">
-          <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+        <div className="text-center space-y-1">
+          <p className="text-sm text-muted-foreground/70">{error}</p>
+          <p className="text-xs text-muted-foreground/35">请检查网络连接后重试</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={fetchMessages}
+          className="rounded-lg text-xs h-8 border-border/40 text-muted-foreground/60 hover:text-foreground"
+        >
+          <RefreshCw className="h-3 w-3 mr-1.5" />
           重试
         </Button>
       </div>
     )
   }
 
+  // ── Empty State ──
   if (messages.length === 0) {
     return (
-      <div className="text-center py-16 space-y-4">
-        <div className="h-16 w-16 mx-auto rounded-2xl bg-muted flex items-center justify-center">
-          <MessageCircle className="h-8 w-8 text-muted-foreground/30" />
+      <div className="flex flex-col items-center justify-center py-20 space-y-5">
+        <div className="h-16 w-16 rounded-2xl bg-muted/50 flex items-center justify-center">
+          <PencilLine className="h-7 w-7 text-muted-foreground/20" />
         </div>
-        <div className="space-y-1">
-          <p className="text-sm text-muted-foreground">暂无留言</p>
-          <p className="text-xs text-muted-foreground/40">在右侧发表第一条留言</p>
+        <div className="text-center space-y-1.5">
+          <p className="text-sm text-muted-foreground/60">还没有留言</p>
+          <p className="text-xs text-muted-foreground/35">
+            在上方写下第一条留言，开启对话
+          </p>
         </div>
       </div>
     )
   }
 
+  // ── Message Feed ──
   return (
-    <div className="space-y-3">
-      {messages.map((message) => (
-        <MessageCard
+    <div className="space-y-4">
+      {messages.map((message, index) => (
+        <div
           key={message.id}
-          message={message}
-          replies={replies[message.id] || []}
-          onReply={handleReply}
-          onDelete={isAdmin ? handleDelete : undefined}
-          isAdmin={isAdmin}
-        />
+          style={{ animationDelay: `${Math.min(index, 10) * 50}ms` }}
+        >
+          <MessageCard
+            message={message}
+            replies={replies[message.id] || []}
+            onReply={handleReply}
+            onDelete={isAdmin ? handleDelete : undefined}
+            isAdmin={isAdmin}
+          />
+        </div>
       ))}
     </div>
   )

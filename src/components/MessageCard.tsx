@@ -69,77 +69,93 @@ export function MessageCard({
     })
   }
 
+  // Generate a stable hue for the ID badge based on the message ID
+  const idHue = (message.id.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % 36) * 10
+
   return (
-    <div className={`${level > 0 ? "ml-6 mt-2" : ""}`}>
-      <div className="group rounded-lg border border-border/40 bg-background/50 p-4 transition-all duration-200 hover:border-border/60 hover:bg-background">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-2.5">
-          <div className="flex items-center gap-2.5">
-            {level > 0 ? (
-              <div className="h-6 w-6 rounded-md bg-muted flex items-center justify-center">
-                <CornerDownRight className="h-3 w-3 text-muted-foreground/50" />
-              </div>
-            ) : (
-              <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center">
-                <span className="text-[10px] font-bold text-primary">
-                  {message.id.slice(-2).toUpperCase()}
-                </span>
-              </div>
-            )}
-            <div className="flex items-center gap-2">
-              <time className="text-xs text-muted-foreground/60">
+    <div className={level > 0 ? "ml-5 mt-3 pl-4 border-l border-border/30" : ""}>
+      <div
+        className="group relative rounded-lg bg-card/80 ring-1 ring-border/30
+                   transition-all duration-200 ease-out
+                   hover:bg-card hover:ring-border/50
+                   animate-fade-in-up"
+      >
+        <div className="p-4 md:p-5">
+          {/* Meta row */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              {/* ID badge with dynamic color */}
+              <span
+                className="inline-flex items-center justify-center h-5 w-5 rounded text-[9px] font-bold
+                           leading-none select-none"
+                style={{
+                  backgroundColor: `oklch(0.65 0.08 ${idHue} / 0.12)`,
+                  color: `oklch(0.45 0.08 ${idHue})`,
+                }}
+              >
+                {message.id.slice(-2).toUpperCase()}
+              </span>
+
+              <time className="text-xs text-muted-foreground/50 tabular-nums">
                 {formatDate(message.createdAt)}
               </time>
+
               {level > 0 && (
-                <span className="text-[10px] text-muted-foreground/40 bg-muted px-1.5 py-0.5 rounded">
+                <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/35">
+                  <CornerDownRight className="h-2.5 w-2.5" />
                   回复
                 </span>
               )}
             </div>
+
+            {/* Actions — visible on hover */}
+            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              {onReply && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowReplyForm(!showReplyForm)}
+                  className="h-7 w-7 p-0 rounded-md text-muted-foreground/50 hover:text-foreground"
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              {isAdmin && onDelete && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="h-7 w-7 p-0 rounded-md text-muted-foreground/40 hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {onReply && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowReplyForm(!showReplyForm)}
-                className="h-6 px-2 text-xs rounded-md"
-              >
-                <MessageSquare className="h-3 w-3" />
-              </Button>
-            )}
-            {isAdmin && onDelete && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="h-6 px-2 text-xs text-destructive hover:text-destructive rounded-md"
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            )}
+          {/* Content */}
+          <div className="prose prose-sm max-w-none dark:prose-invert
+                          prose-p:my-1.5 prose-p:leading-relaxed
+                          prose-pre:bg-muted prose-pre:border prose-pre:border-border/40
+                          prose-pre:rounded-lg prose-pre:text-xs prose-pre:shadow-none
+                          prose-code:text-[0.85em]
+                          prose-headings:font-serif">
+            <ReactMarkdown>{message.content}</ReactMarkdown>
           </div>
-        </div>
-
-        {/* Content */}
-        <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-1.5 prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:rounded-lg prose-pre:text-xs">
-          <ReactMarkdown>{message.content}</ReactMarkdown>
         </div>
       </div>
 
       {/* Reply form */}
       {showReplyForm && (
-        <div className="ml-6 mt-2">
+        <div className={level > 0 ? "ml-5 mt-3" : "ml-0 mt-3"}>
           <ReplyForm onSubmit={handleReply} onCancel={() => setShowReplyForm(false)} />
         </div>
       )}
 
-      {/* Replies */}
+      {/* Nested replies */}
       {replies.length > 0 && (
-        <div className="mt-2 space-y-2">
+        <div className="mt-3 space-y-1">
           {replies.map((reply) => (
             <MessageCard
               key={reply.id}

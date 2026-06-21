@@ -1,9 +1,13 @@
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import { Noto_Serif_SC } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/ThemeProvider"
 
-const inter = Inter({ subsets: ["latin"] })
+const notoSerifSC = Noto_Serif_SC({
+  weight: ["400", "700"],
+  variable: "--font-serif",
+  display: "swap",
+})
 
 export const metadata: Metadata = {
   title: "匿名留言板",
@@ -17,7 +21,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={notoSerifSC.variable}>
         <ThemeProvider defaultTheme="system">
           {children}
         </ThemeProvider>
