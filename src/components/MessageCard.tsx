@@ -125,8 +125,8 @@ export function MessageCard({
               )}
             </div>
 
-            {/* Actions — visible on hover */}
-            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            {/* Actions — always visible on mobile, hover-reveal on desktop */}
+            <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
               {onReply && (
                 <Button
                   variant="ghost"
