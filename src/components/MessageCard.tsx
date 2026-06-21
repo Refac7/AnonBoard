@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import ReactMarkdown from "react-markdown"
 import { Button } from "@/components/ui/button"
 import { MessageSquare, Trash2, CornerDownRight } from "lucide-react"
 import { ReplyForm } from "./ReplyForm"
+import { cn } from "@/lib/utils"
 
 interface Message {
   id: string
@@ -35,6 +36,20 @@ export function MessageCard({
 }: MessageCardProps) {
   const [showReplyForm, setShowReplyForm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // ── Content fold ──
+  const CONTENT_FOLD_THRESHOLD = 500
+  const [isContentExpanded, setIsContentExpanded] = useState(false)
+  const needsContentFold = message.content.length > CONTENT_FOLD_THRESHOLD
+
+  // ── Reply collapse ──
+  const MAX_VISIBLE_REPLIES = 3
+  const [showAllReplies, setShowAllReplies] = useState(false)
+  const hasExcessReplies = replies.length > MAX_VISIBLE_REPLIES
+  const visibleReplies = useMemo(
+    () => (showAllReplies ? replies : replies.slice(0, MAX_VISIBLE_REPLIES)),
+    [replies, showAllReplies]
+  )
 
   const handleDelete = async () => {
     if (!onDelete) return
@@ -143,8 +158,42 @@ export function MessageCard({
                           prose-pre:rounded-lg prose-pre:text-xs prose-pre:shadow-none
                           prose-code:text-[0.85em]
                           prose-headings:font-serif">
-            <ReactMarkdown>{message.content}</ReactMarkdown>
+            {needsContentFold ? (
+              <div className="relative">
+                <div
+                  className={cn(
+                    "overflow-hidden transition-all duration-500 ease-out",
+                    isContentExpanded ? "max-h-[10000px]" : "max-h-[180px]"
+                  )}
+                >
+                  <ReactMarkdown>{message.content}</ReactMarkdown>
+                </div>
+                {!isContentExpanded && (
+                  <div
+                    className="absolute bottom-0 left-0 right-0 h-16
+                               bg-gradient-to-t from-card/90 via-card/60 to-transparent
+                               pointer-events-none rounded-b-lg"
+                  />
+                )}
+              </div>
+            ) : (
+              <ReactMarkdown>{message.content}</ReactMarkdown>
+            )}
           </div>
+
+          {/* ── Content fold toggle ── */}
+          {needsContentFold && (
+            <div className="mt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsContentExpanded(!isContentExpanded)}
+                className="h-7 px-2 text-xs text-muted-foreground/40 hover:text-muted-foreground/70 rounded-md"
+              >
+                {isContentExpanded ? "收起" : "展开全文"}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -158,7 +207,7 @@ export function MessageCard({
       {/* Nested replies */}
       {replies.length > 0 && (
         <div className="mt-3 space-y-1">
-          {replies.map((reply) => (
+          {visibleReplies.map((reply) => (
             <MessageCard
               key={reply.id}
               message={reply}
@@ -170,6 +219,22 @@ export function MessageCard({
               level={level + 1}
             />
           ))}
+
+          {/* ── Excess replies toggle ── */}
+          {hasExcessReplies && (
+            <div className={level > 0 ? "ml-5 mt-2" : "mt-2"}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAllReplies(!showAllReplies)}
+                className="h-7 px-2 text-xs text-muted-foreground/40 hover:text-muted-foreground/70 rounded-md"
+              >
+                {showAllReplies
+                  ? "收起回复"
+                  : `查看全部 ${replies.length} 条回复`}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

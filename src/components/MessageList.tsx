@@ -26,50 +26,93 @@ export function MessageList({
   refreshKey = 0,
   onReplyPosted,
 }: MessageListProps) {
+  const DISPLAY_PAGE_SIZE = 20
   const [messages, setMessages] = useState<Message[]>([])
   const [replies, setReplies] = useState<Record<string, Message[]>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // ── Pagination ──
+  const [displayCount, setDisplayCount] = useState(DISPLAY_PAGE_SIZE)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+
   // Track whether this is the initial load (show loading) or a background refresh
   const isInitialLoad = useRef(true)
 
-  const fetchMessages = useCallback(async (bypassCache: boolean) => {
-    // Only show full loading state on initial load
-    if (isInitialLoad.current) {
+  const fetchMessages = useCallback(async (bypassCache: boolean, cursor?: string) => {
+    // Only show full loading state on initial load (not cursor loads)
+    if (isInitialLoad.current && !cursor) {
       setIsLoading(true)
     }
-    setError(null)
+    if (!cursor) {
+      setError(null)
+    }
 
     try {
-      const url = bypassCache
-        ? `/api/messages?all=true&_t=${Date.now()}`
-        : "/api/messages?all=true"
+      let url = `/api/messages?all=true`
+      if (bypassCache) url += `&_t=${Date.now()}`
+      if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`
 
       const response = await fetch(url)
       if (!response.ok) throw new Error("Failed to fetch messages")
 
-      const allMessages: Message[] = await response.json()
+      const data = await response.json()
+      const pageMessages: Message[] = data.messages
 
-      // Split into top-level messages and replies
-      const topLevel = allMessages.filter((m) => !m.parentId)
-      setMessages(topLevel)
+      if (cursor) {
+        // ── Append mode: merge with existing messages ──
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map((m) => m.id))
+          const newTopLevel = pageMessages.filter(
+            (m) => !m.parentId && !existingIds.has(m.id)
+          )
+          return [...prev, ...newTopLevel]
+        })
 
-      // Build a complete reply tree: parentId -> children (at any depth)
-      const repliesMap: Record<string, Message[]> = {}
-      for (const msg of allMessages) {
-        if (msg.parentId) {
-          if (!repliesMap[msg.parentId]) {
-            repliesMap[msg.parentId] = []
+        setReplies((prev) => {
+          const next = { ...prev }
+          for (const msg of pageMessages) {
+            if (msg.parentId) {
+              if (!next[msg.parentId]) {
+                next[msg.parentId] = []
+              }
+              const exists = next[msg.parentId].some((r) => r.id === msg.id)
+              if (!exists) {
+                next[msg.parentId].push(msg)
+              }
+            }
           }
-          repliesMap[msg.parentId].push(msg)
+          return next
+        })
+      } else {
+        // ── Initial load: replace ──
+        const topLevel = pageMessages.filter((m) => !m.parentId)
+        setMessages(topLevel)
+        setDisplayCount(DISPLAY_PAGE_SIZE)
+
+        const repliesMap: Record<string, Message[]> = {}
+        for (const msg of pageMessages) {
+          if (msg.parentId) {
+            if (!repliesMap[msg.parentId]) {
+              repliesMap[msg.parentId] = []
+            }
+            repliesMap[msg.parentId].push(msg)
+          }
         }
+        setReplies(repliesMap)
       }
-      setReplies(repliesMap)
+
+      setNextCursor(data.nextCursor)
+      setHasMore(data.hasMore)
     } catch {
-      setError("加载留言失败，请稍后重试")
+      if (!cursor) {
+        setError("加载留言失败，请稍后重试")
+      }
     } finally {
       setIsLoading(false)
+      setIsLoadingMore(false)
       isInitialLoad.current = false
     }
   }, [])
@@ -79,6 +122,30 @@ export function MessageList({
     const bypassCache = refreshKey > 0
     fetchMessages(bypassCache)
   }, [fetchMessages, refreshKey])
+
+  // ── Load more: client-side reveal or server fetch ──
+  const handleLoadMore = useCallback(async () => {
+    const totalTopLevel = messages.length
+
+    // If we have more top-level messages already loaded, reveal them client-side
+    if (displayCount < totalTopLevel) {
+      setDisplayCount((prev) =>
+        Math.min(prev + DISPLAY_PAGE_SIZE, totalTopLevel)
+      )
+      return
+    }
+
+    // Otherwise, fetch the next page from the server
+    if (hasMore && nextCursor && !isLoadingMore) {
+      setIsLoadingMore(true)
+      try {
+        await fetchMessages(false, nextCursor)
+        setDisplayCount((prev) => prev + DISPLAY_PAGE_SIZE)
+      } catch {
+        setIsLoadingMore(false)
+      }
+    }
+  }, [displayCount, messages.length, hasMore, nextCursor, isLoadingMore, fetchMessages])
 
   const handleReply = async (parentId: string, content: string) => {
     const response = await fetch("/api/messages", {
@@ -180,9 +247,13 @@ export function MessageList({
   }
 
   // ── Message Feed ──
+  const visibleMessages = messages.slice(0, displayCount)
+  const canLoadMore =
+    hasMore || displayCount < messages.length
+
   return (
     <div className="space-y-4">
-      {messages.map((message, index) => (
+      {visibleMessages.map((message, index) => (
         <div
           key={message.id}
           style={{ animationDelay: `${Math.min(index, 10) * 50}ms` }}
@@ -197,6 +268,37 @@ export function MessageList({
           />
         </div>
       ))}
+
+      {/* ── Load More ── */}
+      {canLoadMore && (
+        <div className="flex justify-center pt-6 pb-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLoadMore}
+            disabled={isLoadingMore}
+            className="h-8 px-4 text-xs text-muted-foreground/40
+                       hover:text-muted-foreground/70 rounded-md
+                       transition-all duration-200"
+          >
+            {isLoadingMore ? (
+              <>
+                <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                加载中…
+              </>
+            ) : (
+              "加载更多"
+            )}
+          </Button>
+        </div>
+      )}
+
+      {/* ── All loaded indicator ── */}
+      {!canLoadMore && messages.length > DISPLAY_PAGE_SIZE && (
+        <p className="text-center text-[11px] text-muted-foreground/25 pt-4 pb-2">
+          已加载全部留言
+        </p>
+      )}
     </div>
   )
 }

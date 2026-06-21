@@ -28,21 +28,25 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const parentId = searchParams.get("parentId")
     const all = searchParams.get("all")
+    const cursor = searchParams.get("cursor") || undefined
     const cache = request.headers.get("x-vercel-cache")
 
-    let messages
     if (all === "true") {
-      messages = await getAllMessages()
-    } else {
-      messages = await getMessages(parentId || undefined)
+      const result = await getAllMessages(cursor)
+      const response = NextResponse.json({
+        messages: result.messages,
+        nextCursor: result.nextCursor,
+        hasMore: result.hasMore,
+      })
+      response.headers.set("Cache-Control", "public, s-maxage=600, stale-while-revalidate=300")
+      response.headers.set("x-cache", cache || "MISS")
+      return response
     }
 
+    const messages = await getMessages(parentId || undefined)
     const response = NextResponse.json(messages)
-
-    // Edge caching: 10 minutes
     response.headers.set("Cache-Control", "public, s-maxage=600, stale-while-revalidate=300")
     response.headers.set("x-cache", cache || "MISS")
-
     return response
   } catch {
     return NextResponse.json({ error: "Failed to fetch messages" }, { status: 500 })

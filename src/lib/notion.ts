@@ -10,6 +10,12 @@ export interface Message {
   isSpam: boolean
 }
 
+export interface PaginatedMessages {
+  messages: Message[]
+  nextCursor: string | null
+  hasMore: boolean
+}
+
 async function notionQuery(body: Record<string, any>) {
   const res = await fetch(`${NOTION_BASE}/databases/${DATABASE_ID}/query`, {
     method: "POST",
@@ -90,17 +96,29 @@ export async function getMessages(parentId?: string | null): Promise<Message[]> 
   return response.results.map(mapPage)
 }
 
-export async function getAllMessages(): Promise<Message[]> {
+export async function getAllMessages(
+  startCursor?: string,
+  pageSize = 100
+): Promise<PaginatedMessages> {
   const filter: any = {
     and: [{ property: "isSpam", select: { equals: "clean" } }],
   }
 
-  const response: any = await notionQuery({
+  const body: Record<string, any> = {
     filter,
-    page_size: 100,
-  })
+    page_size: pageSize,
+  }
+  if (startCursor) {
+    body.start_cursor = startCursor
+  }
 
-  return response.results.map(mapPage)
+  const response: any = await notionQuery(body)
+
+  return {
+    messages: response.results.map(mapPage),
+    nextCursor: response.next_cursor || null,
+    hasMore: response.has_more || false,
+  }
 }
 
 export async function createMessage(content: string, ipHash: number, parentId?: string): Promise<Message> {
