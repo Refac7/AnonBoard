@@ -17,6 +17,7 @@ interface Message {
 interface MessageCardProps {
   message: Message
   replies?: Message[]
+  allReplies?: Record<string, Message[]>
   onReply?: (parentId: string, content: string) => Promise<void>
   onDelete?: (id: string) => Promise<void>
   isAdmin?: boolean
@@ -26,6 +27,7 @@ interface MessageCardProps {
 export function MessageCard({
   message,
   replies = [],
+  allReplies = {},
   onReply,
   onDelete,
   isAdmin = false,
@@ -160,6 +162,8 @@ export function MessageCard({
             <MessageCard
               key={reply.id}
               message={reply}
+              replies={allReplies[reply.id] || []}
+              allReplies={allReplies}
               onReply={onReply}
               onDelete={onDelete}
               isAdmin={isAdmin}

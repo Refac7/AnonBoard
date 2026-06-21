@@ -61,6 +61,16 @@ async function notionPost(body: Record<string, any>) {
   return res.json()
 }
 
+function mapPage(page: any): Message {
+  return {
+    id: page.id,
+    content: page.properties.content?.title?.[0]?.plain_text || "",
+    createdAt: page.properties.createdAt?.created_time || new Date().toISOString(),
+    parentId: page.properties.parentId?.rich_text?.[0]?.plain_text || null,
+    isSpam: page.properties.isSpam?.select?.name === "spam",
+  }
+}
+
 export async function getMessages(parentId?: string | null): Promise<Message[]> {
   const filter: any = {
     and: [{ property: "isSpam", select: { equals: "clean" } }],
@@ -77,13 +87,20 @@ export async function getMessages(parentId?: string | null): Promise<Message[]> 
     page_size: 50,
   })
 
-  return response.results.map((page: any) => ({
-    id: page.id,
-    content: page.properties.content?.title?.[0]?.plain_text || "",
-    createdAt: page.properties.createdAt?.created_time || new Date().toISOString(),
-    parentId: page.properties.parentId?.rich_text?.[0]?.plain_text || null,
-    isSpam: page.properties.isSpam?.select?.name === "spam",
-  }))
+  return response.results.map(mapPage)
+}
+
+export async function getAllMessages(): Promise<Message[]> {
+  const filter: any = {
+    and: [{ property: "isSpam", select: { equals: "clean" } }],
+  }
+
+  const response: any = await notionQuery({
+    filter,
+    page_size: 100,
+  })
+
+  return response.results.map(mapPage)
 }
 
 export async function createMessage(content: string, ipHash: number, parentId?: string): Promise<Message> {

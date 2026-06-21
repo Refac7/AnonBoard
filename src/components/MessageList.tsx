@@ -43,27 +43,26 @@ export function MessageList({
 
     try {
       const url = bypassCache
-        ? `/api/messages?_t=${Date.now()}`
-        : "/api/messages"
+        ? `/api/messages?all=true&_t=${Date.now()}`
+        : "/api/messages?all=true"
 
       const response = await fetch(url)
       if (!response.ok) throw new Error("Failed to fetch messages")
 
-      const data = await response.json()
-      setMessages(data)
+      const allMessages: Message[] = await response.json()
 
+      // Split into top-level messages and replies
+      const topLevel = allMessages.filter((m) => !m.parentId)
+      setMessages(topLevel)
+
+      // Build a complete reply tree: parentId -> children (at any depth)
       const repliesMap: Record<string, Message[]> = {}
-      for (const msg of data) {
-        const repliesUrl = bypassCache
-          ? `/api/messages?parentId=${msg.id}&_t=${Date.now()}`
-          : `/api/messages?parentId=${msg.id}`
-
-        const repliesResponse = await fetch(repliesUrl)
-        if (repliesResponse.ok) {
-          const repliesData = await repliesResponse.json()
-          if (repliesData.length > 0) {
-            repliesMap[msg.id] = repliesData
+      for (const msg of allMessages) {
+        if (msg.parentId) {
+          if (!repliesMap[msg.parentId]) {
+            repliesMap[msg.parentId] = []
           }
+          repliesMap[msg.parentId].push(msg)
         }
       }
       setReplies(repliesMap)
@@ -191,6 +190,7 @@ export function MessageList({
           <MessageCard
             message={message}
             replies={replies[message.id] || []}
+            allReplies={replies}
             onReply={handleReply}
             onDelete={isAdmin ? handleDelete : undefined}
             isAdmin={isAdmin}

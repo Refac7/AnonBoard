@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getMessages, createMessage, checkRateLimit } from "@/lib/notion"
+import { getMessages, getAllMessages, createMessage, checkRateLimit } from "@/lib/notion"
 
 // Simple spam filter
 function isSpam(content: string): boolean {
@@ -27,9 +27,15 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const parentId = searchParams.get("parentId")
+    const all = searchParams.get("all")
     const cache = request.headers.get("x-vercel-cache")
 
-    const messages = await getMessages(parentId || undefined)
+    let messages
+    if (all === "true") {
+      messages = await getAllMessages()
+    } else {
+      messages = await getMessages(parentId || undefined)
+    }
 
     const response = NextResponse.json(messages)
 
