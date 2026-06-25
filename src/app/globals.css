@@ -298,11 +298,8 @@
 }
 
 /* ── Focus ring ── */
-*:focus-visible {
-  outline: 2px solid oklch(0.55 0.10 55 / 0.5);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
+/* Focus ring is handled per-component via Tailwind ring utilities.
+   Avoid a global outline that conflicts with the ring system. */
 
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
